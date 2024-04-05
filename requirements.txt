@@ -1,7 +1,6 @@
 streamlit
-streamlit_chat
+streamlit-chat
 langchain-community
-huggingface-hub
-faiss-cpu
-numpy
-packaging
+tempfile
+streamlit==1.10.0
+streamlit-chat==0.1.0
