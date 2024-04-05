@@ -1,6 +1,9 @@
-
-pypdf
+streamlit
+streamlit_chat
+tempfile
 langchain
+huggingface-hub
+pypdf
 torch
 accelerate
 bitsandbytes
