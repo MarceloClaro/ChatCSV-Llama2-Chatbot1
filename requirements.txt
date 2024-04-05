@@ -1,7 +1,7 @@
 streamlit
 pandas
 streamlit-chat
-langchain_community
+langchain
 faiss-cpu
 sentence-transformers
 transformers
