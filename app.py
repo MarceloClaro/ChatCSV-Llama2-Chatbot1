@@ -1,4 +1,4 @@
-from streamlit import title, markdown, sidebar, file_uploader, container, form_submit_button, text_input
+import streamlit as st
 from streamlit_chat import message
 import tempfile
 from langchain_community.document_loaders.csv_loader import CSVLoader
@@ -24,10 +24,10 @@ def carregar_llm():
         )
     return llm
 
-title("Chat com CSV usando Llama2 🦙🦜")
-markdown("<h3 style='text-align: center; color: white;'>Construído por <a href='https://github.com/AIAnytime'>AI Anytime com ❤️ </a></h3>", unsafe_allow_html=True)
+st.title("Chat com CSV usando Llama2 🦙🦜")
+st.markdown("<h3 style='text-align: center; color: white;'>Construído por <a href='https://github.com/AIAnytime'>AI Anytime com ❤️ </a></h3>", unsafe_allow_html=True)
 
-arquivo_enviado = sidebar.file_uploader("Envie seus Dados", type="csv")
+arquivo_enviado = st.sidebar.file_uploader("Envie seus Dados", type="csv")
 
 if arquivo_enviado:
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
@@ -62,20 +62,18 @@ if arquivo_enviado:
     if 'past' not in st.session_state:
         st.session_state['past'] = ["Ei! 👋"]
         
-    response_container = container()
-    form_key = 'my_form'
+    with st.container():
+        with st.form(key='my_form'):
+            entrada_usuario = st.text_input("Consulta:", placeholder="Fale com seus dados csv aqui (:", key='input')
+            botao_enviar = st.form_submit_button(label='Enviar')
 
-    with container():
-        with form_submit_button(key=form_key, label='Enviar') as botao_enviar:
-            entrada_usuario = text_input("Consulta:", placeholder="Fale com seus dados csv aqui (:", key='input')
-            
         if botao_enviar and entrada_usuario:
             saida = chat_conversacional(entrada_usuario)
             st.session_state['past'].append(entrada_usuario)
             st.session_state['generated'].append(saida)
 
     if st.session_state['generated']:
-        with response_container:
+        with st.container():
             for i, generated_message in enumerate(st.session_state['generated']):
                 message(st.session_state["past"][i], is_user=True, key=str(i) + '_user', avatar_style="big-smile")
                 message(generated_message, key=str(i), avatar_style="thumbs")
