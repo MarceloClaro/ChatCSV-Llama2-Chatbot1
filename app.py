@@ -7,14 +7,14 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_community.llms import CTransformers
 
-# Caminhos para o FAISS DB e o modelo LLM
+# Paths for the FAISS DB and the LLM model
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 LLM_MODEL_PATH = "llama-2-7b-chat.ggmlv3.q8_0.bin"
 
 llm = None
 
-def carregar_llm():
-    """Carrega o modelo LLM se ainda não estiver carregado."""
+def load_llm():
+    """Loads the LLM model if it's not already loaded."""
     global llm
     if llm is None:
         llm = CTransformers(
@@ -25,57 +25,76 @@ def carregar_llm():
         )
     return llm
 
-# Interface do Streamlit
-st.title("Chat com CSV usando Llama2 🦙🦜")
-st.markdown("<h3 style='text-align: center; color: white;'>Construído por <a href='https://github.com/AIAnytime'>AI Anytime com ❤️ </a></h3>", unsafe_allow_html=True)
+def setup_streamlit_interface():
+    """Sets up the Streamlit interface."""
+    st.title("Chat with CSV using Llama2 🦙🦜")
+    st.markdown("<h3 style='text-align: center; color: white;'>Built by <a href='https://github.com/AIAnytime'>AI Anytime with ❤️ </a></h3>", unsafe_allow_html=True)
 
-arquivo_enviado = st.sidebar.file_uploader("Envie seus Dados", type="csv")
+    uploaded_file = st.sidebar.file_uploader("Upload your Data", type="csv")
+    return uploaded_file
 
-if arquivo_enviado:
+def process_uploaded_file(uploaded_file):
+    """Processes the uploaded file."""
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(arquivo_enviado.getvalue())
+        tmp_file.write(uploaded_file.getvalue())
         tmp_file_path = tmp_file.name
 
-    carregador = CSVLoader(file_path=tmp_file_path, encoding="utf-8", csv_args={'delimiter': ','})
-    dados = carregador.load()
+    loader = CSVLoader(file_path=tmp_file_path, encoding="utf-8", csv_args={'delimiter': ','})
+    data = loader.load()
     embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2', model_kwargs={'device': 'cpu'})
-    db = FAISS.from_documents(dados, embeddings)
+    db = FAISS.from_documents(data, embeddings)
     db.save_local(DB_FAISS_PATH)
-    chain = ConversationalRetrievalChain.from_llm(llm=carregar_llm(), retriever=db.as_retriever())
+    chain = ConversationalRetrievalChain.from_llm(llm=load_llm(), retriever=db.as_retriever())
+    return chain
 
-    # Inicializa o estado da sessão
+def initialize_session_state():
+    """Initializes the session state."""
     if 'history' not in st.session_state:
         st.session_state['history'] = []
     if 'cache' not in st.session_state:
         st.session_state['cache'] = {}
     if 'generated' not in st.session_state:
-        st.session_state['generated'] = ["Olá! Pergunte-me qualquer coisa sobre " + arquivo_enviado.name + " 🤗"]
+        st.session_state['generated'] = ["Hello! Ask me anything about " + uploaded_file.name + " 🤗"]
     if 'past' not in st.session_state:
-        st.session_state['past'] = ["Ei! 👋"]
+        st.session_state['past'] = ["Hey! 👋"]
 
-    # Interface para o chat conversacional
+def setup_conversational_chat_interface():
+    """Sets up the conversational chat interface."""
     with st.container():
         with st.form(key='my_form'):
-            entrada_usuario = st.text_input("Consulta:", placeholder="Fale com seus dados csv aqui (:", key='input')
-            botao_enviar = st.form_submit_button(label='Enviar')
+            user_input = st.text_input("Query:", placeholder="Talk with your csv data here (:", key='input')
+            send_button = st.form_submit_button(label='Send')
 
-        if botao_enviar and entrada_usuario:
-            saida = chat_conversacional(entrada_usuario)
-            st.session_state['past'].append(entrada_usuario)
-            st.session_state['generated'].append(saida)
+        if send_button and user_input:
+            output = conversational_chat(user_input)
+            st.session_state['past'].append(user_input)
+            st.session_state['generated'].append(output)
 
-    # Exibe as mensagens do chat
+def display_chat_messages():
+    """Displays the chat messages."""
     with st.container():
         for i, generated_message in enumerate(st.session_state['generated']):
             message(st.session_state["past"][i], is_user=True, key=str(i) + '_user', avatar_style="big-smile")
             message(generated_message, key=str(i), avatar_style="thumbs")
 
-def chat_conversacional(consulta):
-    """Gerencia a lógica do chat conversacional, incluindo o cache de respostas."""
-    if consulta in st.session_state['cache']:
-        return st.session_state['cache'][consulta]
+def conversational_chat(query):
+    """Manages the conversational chat logic, including the cache of responses."""
+    if query in st.session_state['cache']:
+        return st.session_state['cache'][query]
     
-    resultado = chain({"question": consulta, "chat_history": st.session_state['history']})
-    st.session_state['history'].append((consulta, resultado["answer"]))
-    st.session_state['cache'][consulta] = resultado["answer"]
-    return resultado["answer"]
+    result = chain({"question": query, "chat_history": st.session_state['history']})
+    st.session_state['history'].append((query, result["answer"]))
+    st.session_state['cache'][query] = result["answer"]
+    return result["answer"]
+
+# Main function to run the application
+def main():
+    uploaded_file = setup_streamlit_interface()
+    if uploaded_file:
+        chain = process_uploaded_file(uploaded_file)
+        initialize_session_state()
+        setup_conversational_chat_interface()
+        display_chat_messages()
+
+if __name__ == "__main__":
+    main()
