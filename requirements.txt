@@ -2,7 +2,7 @@ streamlit
 pandas
 streamlit-chat
 langchain
-langchain-community langchain-core
+langchain-community
 faiss-cpu
 sentence-transformers
 transformers
