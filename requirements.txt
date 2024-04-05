@@ -1,4 +1,3 @@
-tempfile
 streamlit
 pandas
 streamlit-chat
