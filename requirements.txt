@@ -1,5 +1,5 @@
-streamlit==1.8.0
-streamlit-chat==0.0.3
+streamlit
+streamlit-chat
 pandas==1.3.5
 tempfile==3.2.1
 langchain-community==0.1.5
