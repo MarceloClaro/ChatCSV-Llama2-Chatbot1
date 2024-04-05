@@ -1,8 +1,8 @@
-streamlit
-streamlit-chat
-pandas
 tempfile
-langchain-community
-transformers
+streamlit
+pandas
+streamlit-chat
+langchain_community
+faiss-cpu
 sentence-transformers
-faiss-gpu
+transformers
