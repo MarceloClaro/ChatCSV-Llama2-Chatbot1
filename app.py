@@ -9,13 +9,37 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.llms import CTransformers
 from langchain_community.retrievers import VectorStoreRetriever
 
-# Definições de caminho
+# Definindo caminhos
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 LLM_MODEL_PATH = "llama-2-7b-chat.ggmlv3.q8_0.bin"
 
 llm = None
 chain = None
 prompt_initial = "Olá! Pergunte-me qualquer coisa sobre seus dados CSV 🤗"
+
+class PromptTemplate:
+    def __init__(self, template, input_variables):
+        self.template = template
+        self.input_variables = input_variables
+
+    def render(self, **kwargs):
+        return self.template.format(**kwargs)
+
+# Template inicial de prompt
+prompt_template_inicial = """
+Não tente inventar uma resposta, se você não sabe, apenas diga que não sabe.
+Responda na mesma língua em que a pergunta foi feita.
+Use apenas os seguintes pedaços de contexto para responder à pergunta no final.
+
+{contexto}
+
+Pergunta: {questao}
+Resposta:"""
+
+PROMPT = PromptTemplate(
+    template=prompt_template_inicial,
+    input_variables=["contexto", "questao"]
+)
 
 def load_llm():
     global llm
@@ -24,7 +48,7 @@ def load_llm():
             model=LLM_MODEL_PATH,
             model_type="llama",
             max_new_tokens=512,
-            temperature=0.5
+            temperatura=0.5
         )
     return llm
 
@@ -50,10 +74,14 @@ def process_uploaded_file(uploaded_file):
 def setup_config_page():
     st.title("Configurações do Chatbot")
     st.subheader("Defina o prompt inicial:")
-    global prompt_initial
+    global prompt_initial, PROMPT
     prompt_initial = st.text_area("Prompt Inicial", value=prompt_initial)
     st.session_state['prompt_initial'] = prompt_initial
     
+    st.subheader("Edite o Template do Prompt:")
+    prompt_template = st.text_area("Template do Prompt", value=prompt_template_inicial)
+    st.session_state['prompt_template'] = prompt_template
+
     st.subheader("Baixar Dados CSV:")
     csv_url = st.text_input("URL do Arquivo CSV:")
     download_button = st.button("Baixar CSV")
@@ -82,14 +110,18 @@ def setup_chat_page():
     else:
         st.error("Nenhum modelo de chat carregado. Por favor, carregue seus dados CSV na página de configurações.")
 
-def conversational_chat(query):
+def conversational_chat(questao):
     global chain
-    if query in st.session_state['cache']:
-        return st.session_state['cache'][query]
-    
-    result = chain({"question": query, "chat_history": st.session_state['history']})
-    st.session_state['history'].append((query, result["answer"]))
-    st.session_state['cache'][query] = result["answer"]
+    if questao in st.session_state['cache']:
+        return st.session_state['cache'][questao]
+
+    contexto = "Seu contexto aqui"  # Defina o contexto aqui
+    prompt = PromptTemplate(template=st.session_state.get('prompt_template', prompt_template_inicial), input_variables=["contexto", "questao"])
+    formatted_prompt = prompt.render(contexto=contexto, questao=questao)
+
+    result = chain({"question": formatted_prompt, "chat_history": st.session_state['history']})
+    st.session_state['history'].append((questao, result["answer"]))
+    st.session_state['cache'][questao] = result["answer"]
     return result["answer"]
 
 def download_csv_data(csv_url):
