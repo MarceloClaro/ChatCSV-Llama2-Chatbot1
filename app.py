@@ -8,6 +8,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_community.llms import CTransformers
 from langchain_community.retrievers import VectorStoreRetriever
+import requests
 
 # Definindo caminhos
 DB_FAISS_PATH = 'vectorstore/db_faiss'
@@ -54,6 +55,16 @@ def setup_config_page():
     prompt_initial = st.text_area("Prompt Inicial", value=prompt_initial)
     st.session_state['prompt_initial'] = prompt_initial
 
+    st.subheader("Baixar Dados CSV:")
+    csv_url = st.text_input("URL do Arquivo CSV:")
+    download_button = st.button("Baixar CSV")
+
+    if download_button and csv_url:
+        csv_file = download_csv_data(csv_url)
+        if csv_file:
+            st.success(f"Arquivo {csv_file} baixado com sucesso!")
+            st.session_state['chain'] = process_uploaded_file(csv_file)
+
 def setup_chat_page():
     st.title("🦙 Chat Inteligente com Dados CSV")
     if 'chain' in st.session_state and st.session_state['chain']:
@@ -81,6 +92,16 @@ def conversational_chat(query):
     st.session_state['history'].append((query, result["answer"]))
     st.session_state['cache'][query] = result["answer"]
     return result["answer"]
+
+# Função para baixar o CSV
+def download_csv_data(csv_url):
+    r = requests.get(csv_url, stream=True)
+    if r.status_code == 200:
+        csv_filename = csv_url.split('/')[-1]
+        with open(csv_filename, 'wb') as f:
+            f.write(r.content)
+        return csv_filename
+    return None
 
 def main():
     st.sidebar.title("Navegação")
