@@ -181,6 +181,8 @@ def validate_csv_file(file_path):
 
 # Função principal para executar o aplicativo Streamlit
 def main():
+    # Inserir o logotipo acima do título "Navegação"
+    st.image("LOGOS_INARTE_COM_SLOGAN.svg", use_column_width=True)
     st.sidebar.title("Navegação")
     # Navegação entre as diferentes páginas do app
     app_mode = st.sidebar.radio("Escolha a página:", ["Configurações", "Chat"])
