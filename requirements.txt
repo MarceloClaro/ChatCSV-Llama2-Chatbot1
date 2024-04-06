@@ -6,3 +6,10 @@ langchain-community
 faiss-cpu
 sentence-transformers
 transformers
+numpy
+torch
+haystack
+nltk
+google
+gensim
+
