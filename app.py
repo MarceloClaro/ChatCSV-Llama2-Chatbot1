@@ -6,7 +6,7 @@ import requests               # Para fazer requisições HTTP, como baixar arqui
 import os                     # Para interagir com o sistema de arquivos do sistema operacional
 
 # Inserir o logotipo acima do título "Navegação"
-st.image("logo.svg", use_column_width=True)
+st.image("LOGOS_INARTE_COM_SLOGAN.svg", use_column_width=True)
 # Caminho onde será armazenado o banco de dados do vetor FAISS
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 
