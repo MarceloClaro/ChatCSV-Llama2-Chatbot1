@@ -2,21 +2,17 @@ import streamlit as st
 from streamlit_chat import message
 import pandas as pd
 import requests
-from langchain_community.document_loaders.csv_loader import CSVLoader
-from langchain_community.chains import ConversationalRetrievalChain
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_community.llms import CTransformers
-from langchain_community.retrievers import VectorStoreRetriever
+import os
 
-# Definindo caminhos
+# Definições de caminho para o armazenamento de dados do vetor
 DB_FAISS_PATH = 'vectorstore/db_faiss'
-LLM_MODEL_PATH = "llama-2-7b-chat.ggmlv3.q8_0.bin"
 
+# Variáveis globais para o modelo de linguagem e a cadeia de recuperação
 llm = None
 chain = None
 prompt_initial = "Olá! Pergunte-me qualquer coisa sobre seus dados CSV 🤗"
 
+# Classe para lidar com o template de prompt
 class PromptTemplate:
     def __init__(self, template, input_variables):
         self.template = template
@@ -25,7 +21,7 @@ class PromptTemplate:
     def render(self, **kwargs):
         return self.template.format(**kwargs)
 
-# Template inicial de prompt
+# Template inicial para o prompt
 prompt_template_inicial = """
 Não tente inventar uma resposta, se você não sabe, apenas diga que não sabe.
 Responda na mesma língua em que a pergunta foi feita.
@@ -41,17 +37,20 @@ PROMPT = PromptTemplate(
     input_variables=["contexto", "questao"]
 )
 
-def load_llm():
-    global llm
-    if llm is None:
-        llm = CTransformers(
-            model=LLM_MODEL_PATH,
+# Função para carregar o modelo de linguagem
+def load_llm(model_path, temperatura, max_tokens):
+    if os.path.exists(model_path):
+        return CTransformers(
+            model=model_path,
             model_type="llama",
-            max_new_tokens=512,
-            temperatura=0.5
+            max_new_tokens=max_tokens,
+            temperatura=temperatura
         )
-    return llm
+    else:
+        st.error("Modelo não encontrado: " + model_path)
+        return None
 
+# Função para converter dados CSV em texto
 def convert_csv_to_text(data):
     text_data = []
     for _, row in data.iterrows():
@@ -59,8 +58,8 @@ def convert_csv_to_text(data):
         text_data.append(text_row)
     return text_data
 
+# Função para processar o arquivo CSV carregado
 def process_uploaded_file(uploaded_file):
-    global chain
     csv_data = pd.read_csv(uploaded_file)
     text_data = convert_csv_to_text(csv_data)
 
@@ -71,17 +70,31 @@ def process_uploaded_file(uploaded_file):
     chain = ConversationalRetrievalChain.from_llm(llm=load_llm(), retriever=retriever)
     return chain
 
+# Configuração da página no Streamlit
 def setup_config_page():
     st.title("Configurações do Chatbot")
-    st.subheader("Defina o prompt inicial:")
-    global prompt_initial, PROMPT
-    prompt_initial = st.text_area("Prompt Inicial", value=prompt_initial)
-    st.session_state['prompt_initial'] = prompt_initial
     
+    # Upload de Modelo de Linguagem Personalizado
+    st.subheader("Upload de Modelo de Linguagem Personalizado:")
+    uploaded_model = st.file_uploader("Escolha um arquivo de modelo", type=['bin'])
+
+    global llm
+    if uploaded_model is not None:
+        model_path = os.path.join("uploaded_models", uploaded_model.name)
+        with open(model_path, "wb") as f:
+            f.write(uploaded_model.getbuffer())
+        st.success("Modelo carregado: " + uploaded_model.name)
+
+        temperatura = st.slider("Temperatura", 0.1, 1.0, 0.5)
+        max_tokens = st.slider("Máximo de Tokens Novos", 10, 512, 512)
+        llm = load_llm(model_path, temperatura, max_tokens)
+
+    # Template de Prompt Personalizado
     st.subheader("Edite o Template do Prompt:")
     prompt_template = st.text_area("Template do Prompt", value=prompt_template_inicial)
     st.session_state['prompt_template'] = prompt_template
 
+    # Baixar Dados CSV
     st.subheader("Baixar Dados CSV:")
     csv_url = st.text_input("URL do Arquivo CSV:")
     download_button = st.button("Baixar CSV")
@@ -92,6 +105,7 @@ def setup_config_page():
             st.success(f"Arquivo {csv_file} baixado com sucesso!")
             st.session_state['chain'] = process_uploaded_file(csv_file)
 
+# Configuração da página de chat no Streamlit
 def setup_chat_page():
     st.title("🦙 Chat Inteligente com Dados CSV")
     if 'chain' in st.session_state and st.session_state['chain']:
@@ -110,12 +124,13 @@ def setup_chat_page():
     else:
         st.error("Nenhum modelo de chat carregado. Por favor, carregue seus dados CSV na página de configurações.")
 
+# Lógica de conversação do chatbot
 def conversational_chat(questao):
     global chain
     if questao in st.session_state['cache']:
         return st.session_state['cache'][questao]
 
-    contexto = "Seu contexto aqui"  # Defina o contexto aqui
+    contexto = "Seu contexto aqui"
     prompt = PromptTemplate(template=st.session_state.get('prompt_template', prompt_template_inicial), input_variables=["contexto", "questao"])
     formatted_prompt = prompt.render(contexto=contexto, questao=questao)
 
@@ -124,6 +139,7 @@ def conversational_chat(questao):
     st.session_state['cache'][questao] = result["answer"]
     return result["answer"]
 
+# Função para baixar dados CSV da URL
 def download_csv_data(csv_url):
     try:
         r = requests.get(csv_url, stream=True)
@@ -143,6 +159,7 @@ def download_csv_data(csv_url):
     except Exception as e:
         st.error(f"Erro ao baixar o arquivo: {e}")
 
+# Função para validar o arquivo CSV
 def validate_csv_file(file_path):
     try:
         pd.read_csv(file_path)
@@ -151,6 +168,7 @@ def validate_csv_file(file_path):
         st.error(f"Erro ao processar o arquivo CSV: {e}")
         return False
 
+# Função principal para executar o aplicativo Streamlit
 def main():
     st.sidebar.title("Navegação")
     app_mode = st.sidebar.radio("Escolha a página:", ["Configurações", "Chat"])
