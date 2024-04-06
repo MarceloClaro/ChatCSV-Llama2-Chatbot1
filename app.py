@@ -1,16 +1,15 @@
 import streamlit as st
 from streamlit_chat import message
-import tempfile
 import pandas as pd
+import requests
 from langchain_community.document_loaders.csv_loader import CSVLoader
 from langchain_community.chains import ConversationalRetrievalChain
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_community.llms import CTransformers
 from langchain_community.retrievers import VectorStoreRetriever
-import requests
 
-# Definindo caminhos
+# Definições de caminho
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 LLM_MODEL_PATH = "llama-2-7b-chat.ggmlv3.q8_0.bin"
 
@@ -54,14 +53,14 @@ def setup_config_page():
     global prompt_initial
     prompt_initial = st.text_area("Prompt Inicial", value=prompt_initial)
     st.session_state['prompt_initial'] = prompt_initial
-
+    
     st.subheader("Baixar Dados CSV:")
     csv_url = st.text_input("URL do Arquivo CSV:")
     download_button = st.button("Baixar CSV")
 
     if download_button and csv_url:
         csv_file = download_csv_data(csv_url)
-        if csv_file:
+        if csv_file and validate_csv_file(csv_file):
             st.success(f"Arquivo {csv_file} baixado com sucesso!")
             st.session_state['chain'] = process_uploaded_file(csv_file)
 
@@ -93,15 +92,32 @@ def conversational_chat(query):
     st.session_state['cache'][query] = result["answer"]
     return result["answer"]
 
-# Função para baixar o CSV
 def download_csv_data(csv_url):
-    r = requests.get(csv_url, stream=True)
-    if r.status_code == 200:
-        csv_filename = csv_url.split('/')[-1]
-        with open(csv_filename, 'wb') as f:
-            f.write(r.content)
-        return csv_filename
-    return None
+    try:
+        r = requests.get(csv_url, stream=True)
+        if r.status_code == 200:
+            csv_filename = csv_url.split('/')[-1]
+            with open(csv_filename, 'wb') as f:
+                total_length = int(r.headers.get('content-length'))
+                dl = 0
+                for data in r.iter_content(chunk_size=4096):
+                    dl += len(data)
+                    f.write(data)
+                    done = int(50 * dl / total_length)
+                    st.progress(dl / total_length)
+            return csv_filename
+        else:
+            st.error("Erro ao baixar o arquivo. Verifique a URL.")
+    except Exception as e:
+        st.error(f"Erro ao baixar o arquivo: {e}")
+
+def validate_csv_file(file_path):
+    try:
+        pd.read_csv(file_path)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao processar o arquivo CSV: {e}")
+        return False
 
 def main():
     st.sidebar.title("Navegação")
