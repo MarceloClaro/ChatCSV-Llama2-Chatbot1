@@ -10,9 +10,6 @@ from langchain.chains import ConversationalRetrievalChain
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 
 def load_llm():
-    """
-    Carrega o modelo de linguagem localmente.
-    """
     llm = CTransformers(
         model="llama-2-7b-chat.ggmlv3.q8_0.bin",
         model_type="llama",
@@ -22,9 +19,6 @@ def load_llm():
     return llm
 
 def process_uploaded_file(uploaded_file):
-    """
-    Processa o arquivo CSV enviado pelo usuário.
-    """
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
         tmp_file_path = tmp_file.name
@@ -35,26 +29,26 @@ def process_uploaded_file(uploaded_file):
     return data
 
 def setup_chat():
-    """
-    Configura o ambiente de chat.
-    """
-    st.title("🦙Chat com CSV usando Llama2🦜")
-    st.markdown("<h3 style='text-align: center; color: white;'></a></h3>", unsafe_allow_html=True)
+    st.title("Chat com CSV usando Llama2 🦙🦜")
+    st.markdown("<h3 style='text-align: center; color: white;'>Construído por <a href='https://github.com/AIAnytime'>AI Anytime com ❤️ </a></h3>", unsafe_allow_html=True)
+    
+    username = st.text_input("Nome de usuário:")
+    password = st.text_input("Senha:", type="password")
+    repo_id = st.text_input("ID do Repositório:")
+    
+    st.sidebar.write("Faça upload do arquivo CSV:")
     uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv")
 
     if uploaded_file:
         data = process_uploaded_file(uploaded_file)
-        return data
+        return data, username, password, repo_id
     else:
-        return None
+        return None, None, None, None
 
 def main():
-    """
-    Função principal para executar o aplicativo Streamlit.
-    """
-    data = setup_chat()
+    data, username, password, repo_id = setup_chat()
 
-    if data:
+    if data and username and password and repo_id:
         embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2', model_kwargs={'device': 'cpu'})
 
         db = FAISS.from_documents(data, embeddings)
@@ -67,7 +61,7 @@ def main():
             st.session_state['history'] = []
 
         if 'generated' not in st.session_state:
-            st.session_state['generated'] = ["Olá! Pergunte-me qualquer coisa sobre " + uploaded_file.name + " 🤗"]
+            st.session_state['generated'] = ["Olá! Pergunte-me qualquer coisa sobre o arquivo CSV 🤗"]
 
         if 'past' not in st.session_state:
             st.session_state['past'] = ["Ei! 👋"]
