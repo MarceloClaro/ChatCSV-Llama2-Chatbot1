@@ -12,4 +12,5 @@ haystack
 nltk
 google
 gensim
-
+langchain-core
+pydantic
