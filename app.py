@@ -1,4 +1,4 @@
-import streamlit as st 
+import streamlit as st
 from streamlit_chat import message
 import tempfile
 from langchain.document_loaders.csv_loader import CSVLoader
@@ -9,73 +9,85 @@ from langchain.chains import ConversationalRetrievalChain
 
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 
-# Carregando o modelo
 def load_llm():
-    # Carregue o modelo baixado localmente aqui
     llm = CTransformers(
-        model = "llama-2-7b-chat.ggmlv3.q8_0.bin",
+        model="llama-2-7b-chat.ggmlv3.q8_0.bin",
         model_type="llama",
-        max_new_tokens = 512,
-        temperature = 0.5
+        max_new_tokens=512,
+        temperature=0.5
     )
     return llm
 
-st.title("🦙Conversa com CSV usando Llama2 🦜")
-st.markdown("<h3 style='text-align: center; color: white;'> </a></h3>", unsafe_allow_html=True)
-
-uploaded_file = st.sidebar.file_uploader("Envie seus Dados", type="csv")
-
-if uploaded_file :
-   # Usando tempfile porque CSVLoader só aceita um file_path
+def process_uploaded_file(uploaded_file):
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(uploaded_file.getvalue())
+        tmp_file.write(uploaded_file.read())
         tmp_file_path = tmp_file.name
 
-    loader = CSVLoader(file_path=tmp_file_path, encoding="utf-8", csv_args={
-                'delimiter': ','})
+    loader = CSVLoader(file_path=tmp_file_path, encoding="utf-8", csv_args={'delimiter': ','})
     data = loader.load()
-    # st.json(data)
-    embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2',
-                                       model_kwargs={'device': 'cpu'})
 
-    db = FAISS.from_documents(data, embeddings)
-    db.save_local(DB_FAISS_PATH)
-    llm = load_llm()
-    chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=db.as_retriever())
+    return data
 
-    def conversational_chat(query):
-        result = chain({"question": query, "chat_history": st.session_state['history']})
-        st.session_state['history'].append((query, result["answer"]))
-        return result["answer"]
+def setup_chat():
+    st.title("🦙 Chat com CSV usando Llama2 🦜")
+    st.markdown("<h3 style='text-align: center; color: white;'></a></h3>", unsafe_allow_html=True)
     
-    if 'history' not in st.session_state:
-        st.session_state['history'] = []
+    username = st.text_input("Nome de usuário:")
+    password = st.text_input("Senha:", type="password")
+    repo_id = st.text_input("ID do Repositório:")
+    
+    st.sidebar.write("Faça upload do arquivo CSV:")
+    uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv")
 
-    if 'generated' not in st.session_state:
-        st.session_state['generated'] = ["Olá! Pergunte-me qualquer coisa sobre " + uploaded_file.name + " 🤗"]
+    if uploaded_file:
+        data = process_uploaded_file(uploaded_file)
+        return data, username, password, repo_id
+    else:
+        return None, None, None, None
 
-    if 'past' not in st.session_state:
-        st.session_state['past'] = ["Oi! 👋"]
-        
-    # Container para o histórico do chat
-    response_container = st.container()
-    # Container para a entrada de texto do usuário
-    container = st.container()
+def conversational_chat(user_input, chain):
+    output = chain.predict(user_input)
+    return output
 
-    with container:
-        with st.form(key='my_form', clear_on_submit=True):
-            
-            user_input = st.text_input("Pergunta:", placeholder="Converse com seus dados CSV aqui (:", key='input')
-            submit_button = st.form_submit_button(label='Enviar')
-            
-        if submit_button and user_input:
-            output = conversational_chat(user_input)
-            
-            st.session_state['past'].append(user_input)
-            st.session_state['generated'].append(output)
+def main():
+    data, username, password, repo_id = setup_chat()
 
-    if st.session_state['generated']:
-        with response_container:
-            for i in range(len(st.session_state['generated'])):
-                message(st.session_state["past"][i], is_user=True, key=str(i) + '_user', avatar_style="big-smile")
-                message(st.session_state["generated"][i], key=str(i), avatar_style="thumbs")
+    if data and username and password and repo_id:
+        embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2', model_kwargs={'device': 'cpu'})
+
+        db = FAISS.from_documents(data, embeddings)
+        db.save_local(DB_FAISS_PATH)
+
+        llm = load_llm()
+        chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=db.as_retriever())
+
+        if 'history' not in st.session_state:
+            st.session_state['history'] = []
+
+        if 'generated' not in st.session_state:
+            st.session_state['generated'] = ["Olá! Pergunte-me qualquer coisa sobre o arquivo CSV 🤗"]
+
+        if 'past' not in st.session_state:
+            st.session_state['past'] = ["Ei! 👋"]
+
+        response_container = st.container()
+        container = st.container()
+
+        with container:
+            with st.form(key='my_form', clear_on_submit=True):
+                user_input = st.text_input("Pergunta:", placeholder="Converse com seus dados CSV aqui (:", key='input')
+                submit_button = st.form_submit_button(label='Enviar')
+
+            if submit_button and user_input:
+                output = conversational_chat(user_input, chain)
+                st.session_state['past'].append(user_input)
+                st.session_state['generated'].append(output)
+
+        if st.session_state['generated']:
+            with response_container:
+                for i in range(len(st.session_state['generated'])):
+                    message(st.session_state["past"][i], is_user=True, key=str(i) + '_user', avatar_style="big-smile")
+                    message(st.session_state["generated"][i], key=str(i), avatar_style="thumbs")
+
+if __name__ == "__main__":
+    main()
