@@ -19,10 +19,6 @@ def setup_chat():
     st.title("🦙 Chat com CSV usando Llama2 🦜")
     st.markdown("<h3 style='text-align: center; color: white;'></a></h3>", unsafe_allow_html=True)
     
-    username = st.text_input("Nome de usuário:")
-    password = st.text_input("Senha:", type="password")
-    repo_id = st.text_input("ID do Repositório:")
-    
     st.sidebar.write("Faça upload do arquivo CSV:")
     uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv")
 
@@ -32,14 +28,14 @@ def setup_chat():
     if uploaded_file and model_file:
         data_path = process_uploaded_file(uploaded_file)
         model_path = process_uploaded_file(model_file)
-        return data_path, model_path, username, password, repo_id
+        return data_path, model_path
     else:
-        return None, None, None, None, None
+        return None, None
 
 def main():
-    data_path, model_path, username, password, repo_id = setup_chat()
+    data_path, model_path = setup_chat()
 
-    if data_path and model_path and username and password and repo_id:
+    if data_path and model_path:
         embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2', model_kwargs={'device': 'cpu'})
 
         db = FAISS.from_documents(data_path, embeddings)
