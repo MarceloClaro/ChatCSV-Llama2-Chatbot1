@@ -8,28 +8,19 @@ from langchain.chains import ConversationalRetrievalChain
 
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 
-def process_uploaded_file(uploaded_file):
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(uploaded_file.read())
-        tmp_file_path = tmp_file.name
-
-    return tmp_file_path
-
 def setup_chat():
     st.title("🦙 Chat com CSV usando Llama2 🦜")
     st.markdown("<h3 style='text-align: center; color: white;'></a></h3>", unsafe_allow_html=True)
     
-    st.set_option('deprecation.showfileUploaderEncoding', False)
-
     st.sidebar.write("Faça upload do arquivo CSV:")
     uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv", accept_multiple_files=False, key='csv')
 
-    st.sidebar.write("Faça upload do modelo Nous-Hermes:")
-    model_file = st.sidebar.file_uploader("Carregar modelo Nous-Hermes", type="gguf", accept_multiple_files=False, key='gguf')
+    st.sidebar.write("Forneça o link do modelo Nous-Hermes (gguf > 1GB):")
+    model_link = st.sidebar.text_input("Link do modelo Nous-Hermes (Google Drive, Dropbox, etc.)")
 
-    if uploaded_file and model_file:
+    if uploaded_file and model_link:
         data_path = process_uploaded_file(uploaded_file)
-        model_path = process_uploaded_file(model_file)
+        model_path = model_link
         return data_path, model_path
     else:
         return None, None
