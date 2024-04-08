@@ -9,6 +9,11 @@ from langchain.chains import ConversationalRetrievalChain
 
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 
+# Define user credentials
+USER_CREDENTIALS = {
+    "marceloclaro@gmail.com": "mcl41414141"
+}
+
 def load_llm():
     llm = CTransformers(
         model="llama-2-7b-chat.ggmlv3.q8_0.bin",
@@ -32,27 +37,32 @@ def setup_chat():
     st.title("🦙 Chat com CSV usando Llama2 🦜")
     st.markdown("<h3 style='text-align: center; color: white;'></a></h3>", unsafe_allow_html=True)
     
-    username = st.text_input("Nome de usuário:")
-    password = st.text_input("Senha:", type="password")
-    repo_id = st.text_input("ID do Repositório:")
-    
-    st.sidebar.write("Faça upload do arquivo CSV:")
-    uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv")
+    # User authentication
+    username = st.sidebar.text_input("Nome de usuário:")
+    password = st.sidebar.text_input("Senha:", type="password")
 
-    if uploaded_file:
-        data = process_uploaded_file(uploaded_file)
-        return data, username, password, repo_id
-    else:
-        return None, None, None, None
+    if st.sidebar.button("Login"):
+        if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
+            st.sidebar.success("Login bem-sucedido!")
+            repo_id = st.text_input("ID do Repositório:")
+            st.sidebar.write("Faça upload do arquivo CSV:")
+            uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv")
+            
+            if uploaded_file:
+                data = process_uploaded_file(uploaded_file)
+                return data, username, repo_id
+        else:
+            st.sidebar.error("Credenciais inválidas. Tente novamente.")
+    return None, None, None
 
 def conversational_chat(input_text):
     # Dummy logic for now, simply echoing the input
     return input_text
 
 def main():
-    data, username, password, repo_id = setup_chat()
+    data, username, repo_id = setup_chat()
 
-    if data and username and password and repo_id:
+    if data and username and repo_id:
         embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2', model_kwargs={'device': 'cpu'})
 
         db = FAISS.from_documents(data, embeddings)
