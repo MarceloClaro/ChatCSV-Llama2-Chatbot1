@@ -1,75 +1,52 @@
 import streamlit as st
 import pandas as pd
-import json
+from langchain.chat_models import ChatOpenAI
+from langchain.agents import create_pandas_dataframe_agent
+from langchain.agents.agent_types import AgentType
 
-from agent import query_agent, create_agent
+# Page title
+st.set_page_config(page_title='🦜🔗 Ask the Data App')
+st.title('🦜🔗 Ask the Data App')
 
+# Load CSV file
+def load_csv(input_csv):
+    df = pd.read_csv(input_csv)
+    with st.expander('See DataFrame'):
+        st.write(df)
+    return df
 
-def decode_response(response: str) -> dict:
-    """This function converts the string response from the model to a dictionary object.
+# Generate LLM response
+def generate_response(csv_file, input_query, openai_api_key):
+    llm = ChatOpenAI(model_name='gpt-3.5-turbo-0613', temperature=0.2, openai_api_key=openai_api_key)
+    df = load_csv(csv_file)
+    agent = create_pandas_dataframe_agent(llm, df, verbose=True, agent_type=AgentType.OPENAI_FUNCTIONS)
+    response = agent.run(input_query)
+    return st.success(response)
 
-    Args:
-        response (str): response from the model
+# Input widgets
+uploaded_file = st.file_uploader('Upload a CSV file', type=['csv'])
+question_list = [
+    'How many rows are there?',
+    'What is the range of values for MolWt with logS greater than 0?',
+    'How many rows have MolLogP value greater than 0.',
+    'Other'
+]
+query_text = st.selectbox('Select an example query:', question_list, index=0 if uploaded_file else None, disabled=not uploaded_file)
+openai_api_key = st.text_input('OpenAI API Key', type='password', disabled=not (uploaded_file and query_text))
 
-    Returns:
-        dict: dictionary with response data
-    """
-    return json.loads(response)
+# App logic
+if uploaded_file and query_text != 'Other' and openai_api_key:
+    st.header('Output')
+    generate_response(uploaded_file, query_text, openai_api_key)
 
+elif uploaded_file and query_text == 'Other':
+    custom_query = st.text_input('Enter your query:', placeholder='Enter query here ...')
+    if st.button('Submit') and custom_query and openai_api_key:
+        st.header('Output')
+        generate_response(uploaded_file, custom_query, openai_api_key)
 
-def write_response(response_dict: dict):
-    """
-    Write a response from an agent to a Streamlit app.
+elif not openai_api_key:
+    st.warning('Please enter your OpenAI API key!', icon='⚠')
 
-    Args:
-        response_dict: The response from the agent.
-
-    Returns:
-        None.
-    """
-
-    # Check if the response is an answer.
-    if "answer" in response_dict:
-        st.write(response_dict["answer"])
-
-    # Check if the response is a bar chart.
-    if "bar" in response_dict:
-        data = response_dict["bar"]
-        df = pd.DataFrame(data)
-        df.set_index("columns", inplace=True)
-        st.bar_chart(df)
-
-    # Check if the response is a line chart.
-    if "line" in response_dict:
-        data = response_dict["line"]
-        df = pd.DataFrame(data)
-        df.set_index("columns", inplace=True)
-        st.line_chart(df)
-
-    # Check if the response is a table.
-    if "table" in response_dict:
-        data = response_dict["table"]
-        df = pd.DataFrame(data["data"], columns=data["columns"])
-        st.table(df)
-
-
-st.title("👨‍💻 Chat with your CSV")
-
-st.write("Please upload your CSV file below.")
-
-data = st.file_uploader("Upload a CSV")
-
-query = st.text_area("Insert your query")
-
-if st.button("Submit Query", type="primary"):
-    # Create an agent from the CSV file.
-    agent = create_agent(data)
-
-    # Query the agent.
-    response = query_agent(agent=agent, query=query)
-
-    # Decode the response.
-    decoded_response = decode_response(response)
-
-    # Write the response to the Streamlit app.
-    write_response(decoded_response)
+elif not uploaded_file:
+    st.warning('Please upload a CSV file!', icon='⚠')
