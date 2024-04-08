@@ -20,8 +20,8 @@ def load_llm():
     )
     return llm
 
-st.title("Conversa com CSV usando Llama2 🦙🦜")
-st.markdown("<h3 style='text-align: center; color: white;'>Desenvolvido por <a href='https://github.com/AIAnytime'>AI Anytime com ❤️ </a></h3>", unsafe_allow_html=True)
+st.title("🦙Conversa com CSV usando Llama2 🦜")
+st.markdown("<h3 style='text-align: center; color: white;'> </a></h3>", unsafe_allow_html=True)
 
 uploaded_file = st.sidebar.file_uploader("Envie seus Dados", type="csv")
 
