@@ -1,6 +1,5 @@
 import streamlit as st
 import tempfile
-import os
 from langchain.document_loaders.csv_loader import CSVLoader
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
@@ -21,30 +20,26 @@ def setup_chat():
     st.markdown("<h3 style='text-align: center; color: white;'></a></h3>", unsafe_allow_html=True)
     
     st.sidebar.write("Faça upload do arquivo CSV:")
-    uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv")
+    uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv", accept_multiple_files=False, key='csv', max_upload_size=300000000)
 
-    st.sidebar.write("Baixe e coloque o modelo Nous-Hermes (.gguf) no diretório 'models':")
-    st.sidebar.write("[Link para download do modelo](link_para_o_modelo)")
+    st.sidebar.write("Faça upload do modelo Nous-Hermes:")
+    model_file = st.sidebar.file_uploader("Carregar modelo Nous-Hermes", type="gguf", accept_multiple_files=False, key='gguf')
 
-    if uploaded_file:
+    if uploaded_file and model_file:
         data_path = process_uploaded_file(uploaded_file)
-        return data_path
+        model_path = process_uploaded_file(model_file)
+        return data_path, model_path
     else:
-        return None
+        return None, None
 
 def main():
-    data_path = setup_chat()
+    data_path, model_path = setup_chat()
 
-    if data_path:
+    if data_path and model_path:
         embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2', model_kwargs={'device': 'cpu'})
 
         db = FAISS.from_documents(data_path, embeddings)
         db.save_local(DB_FAISS_PATH)
-
-        model_path = "models/Nous-Hermes-2-Mistral-7B-DPO.Q4_0.gguf"
-        if not os.path.exists(model_path):
-            st.error("Por favor, coloque o arquivo do modelo Nous-Hermes no diretório 'models'.")
-            return
 
         llm = CTransformers(model=model_path, model_type="llama", max_new_tokens=512, temperature=0.5)
         chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=db.as_retriever())
