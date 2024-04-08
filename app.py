@@ -19,8 +19,10 @@ def setup_chat():
     st.title("🦙 Chat com CSV usando Llama2 🦜")
     st.markdown("<h3 style='text-align: center; color: white;'></a></h3>", unsafe_allow_html=True)
     
+    st.set_option('deprecation.showfileUploaderEncoding', False)
+
     st.sidebar.write("Faça upload do arquivo CSV:")
-    uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv", accept_multiple_files=False, key='csv', max_upload_size=300000000)
+    uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv", accept_multiple_files=False, key='csv')
 
     st.sidebar.write("Faça upload do modelo Nous-Hermes:")
     model_file = st.sidebar.file_uploader("Carregar modelo Nous-Hermes", type="gguf", accept_multiple_files=False, key='gguf')
