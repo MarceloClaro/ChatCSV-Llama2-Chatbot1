@@ -21,7 +21,7 @@ def load_llm():
     return llm
 
 st.title("Chat with CSV using Llama2 🦙🦜")
-st.markdown("<h3 style='text-align: center; color: white;'>Built by <a href='https://github.com/AIAnytime'>AI Anytime with ❤️ </a></h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center; color: white;'></a></h3>", unsafe_allow_html=True)
 
 uploaded_file = st.sidebar.file_uploader("Upload your Data", type="csv")
 
