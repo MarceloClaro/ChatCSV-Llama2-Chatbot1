@@ -53,6 +53,8 @@ def setup_chat():
                 return data, username, repo_id
         else:
             st.sidebar.error("Credenciais inválidas. Tente novamente.")
+    
+    # Return None values if login not successful or file not uploaded
     return None, None, None
 
 def conversational_chat(input_text):
@@ -98,6 +100,8 @@ def main():
                 for i in range(len(st.session_state['generated'])):
                     message(st.session_state["past"][i], is_user=True, key=str(i) + '_user', avatar_style="big-smile")
                     message(st.session_state["generated"][i], key=str(i), avatar_style="thumbs")
+    else:
+        st.write("Por favor, faça login e carregue um arquivo CSV para começar.")
 
 if __name__ == "__main__":
     main()
