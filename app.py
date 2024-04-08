@@ -1,97 +1,145 @@
 import streamlit as st
-from streamlit_chat import message
+from htmlTemplates import css, bot_template, user_template
+import pandas as pd
+import os
+import sys
+import re
 import tempfile
+from streamlit_chat import message
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders.csv_loader import CSVLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
+from langchain.vectorstores.faiss import FAISS
 from langchain.llms import CTransformers
+from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 
-DB_FAISS_PATH = 'vectorstore/db_faiss'
 
-# Define user credentials
-USER_CREDENTIALS = {
-    "marceloclaro@gmail.com": "mcl41414141"
-}
+def combine_csv_files_and_get_data(uploaded_files, output_path):
+    combined_data = []
+    data_list = []
+    for uploaded_file in uploaded_files:
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            tmp_file.write(uploaded_file.getvalue())
+            tmp_file_path = tmp_file.name
 
-def load_llm():
-    llm = CTransformers(
-        model="llama-2-7b-chat.ggmlv3.q8_0.bin",
-        model_type="llama",
-        max_new_tokens=512,
-        temperature=0.5
-    )
-    return llm
+            df = pd.read_csv(tmp_file.name)
+            numeric_pattern = re.compile(r'\d+')
+            year = numeric_pattern.search(tmp_file.name)
 
-def process_uploaded_file(uploaded_file):
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(uploaded_file.getvalue())
-        tmp_file_path = tmp_file.name
+            # Add "year" column
+            df["year"] = year
 
-    loader = CSVLoader(file_path=tmp_file_path, encoding="utf-8", csv_args={'delimiter': ','})
+            # Append data to combined list
+            combined_data.append(df)
+
+    # Combine all dataframes into one
+    combined_df = pd.concat(combined_data, ignore_index=True)
+
+    # Save the combined data to a new CSV file
+    combined_df.to_csv(output_path, index=False)
+
+    print(f"Combined data saved to: {output_path}")
+
+    # Loading a CSV file
+    loader = CSVLoader(file_path = output_path, encoding = "utf-8", csv_args = {'delimiter': ','})
     data = loader.load()
-
+    print("Data Loaded and returning the data for text chunking")
     return data
 
-def setup_chat():
-    st.title("🦙 Chat com CSV usando Llama2 🦜")
-    st.markdown("<h3 style='text-align: center; color: white;'></a></h3>", unsafe_allow_html=True)
-    
-    # User authentication
-    username = st.sidebar.text_input("Nome de usuário:")
-    password = st.sidebar.text_input("Senha:", type="password")
+def get_text_chunks(final_data):
+    # Splitting Data into chunks
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size = 200, chunk_overlap = 20)
+    text_chunks = text_splitter.split_documents(final_data)
+    print("Text Chunks Completed")
+    return text_chunks
 
-    if st.sidebar.button("Login"):
-        if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
-            st.sidebar.success("Login bem-sucedido!")
-            repo_id = st.text_input("ID do Repositório:")
-            st.sidebar.write("Faça upload do arquivo CSV:")
-            uploaded_file = st.sidebar.file_uploader("Carregar seus Dados", type="csv")
-            
-            if uploaded_file:
-                data = process_uploaded_file(uploaded_file)
-                return data, username, repo_id
-        else:
-            st.sidebar.error("Credenciais inválidas. Tente novamente.")
-    
-    # Return None values if login not successful or file not uploaded
-    return None, None, None
+def get_embeddings(text_chunks, DB_FAISS_PATH):
+    #Download Sentence Transformer embeddings from HuggingFace
+    embeddings = HuggingFaceEmbeddings(model_name = 'sentence-transformers/all-MiniLM-L6-v2')
+    docsearch = FAISS.from_documents(text_chunks, embeddings)
+    docsearch.save_local(DB_FAISS_PATH)
+    print(" --- Embeddings are stored into a vector database --- ")
+    return docsearch
 
-def conversational_chat(input_text):
-    # Dummy logic for now, simply echoing the input
-    return input_text
+def load_llm(model_path):
+    llm = CTransformers(
+                    model= model_path,
+                    model_type="llama",
+                    config={
+                        "max_new_tokens": 270,
+                        "temperature": 0.1,
+                    }
+                )
+    print("LLM loaded")
+    return llm
+
+def conversational_chat(chain,query):
+    result = chain({"question": query, "chat_history": st.session_state['history']})
+    st.session_state['history'].append((query, result["answer"]))
+    return result["answer"]
 
 def main():
-    data, username, repo_id = setup_chat()
+    DB_FAISS_PATH = "vectorstore/db_faiss/web_app2"
 
-    if data and username and repo_id:
-        embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2', model_kwargs={'device': 'cpu'})
+    # Choose the output destination
+    output_path = "data/combined_data.csv"
 
-        db = FAISS.from_documents(data, embeddings)
-        db.save_local(DB_FAISS_PATH)
+    # Large Language Model Path
+    llm_path = "C:/Projects/Project Langchain/models/llama-2-7b-chat.ggmlv3.q8_0.bin"
 
-        llm = load_llm()
-        chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=db.as_retriever())
+    st.set_page_config(page_title=" 📈 Chat with multiple CSVs 📈",
+                       page_icon=":charts:")
+    st.write(css, unsafe_allow_html=True)
+
+    st.title("Chat with CSV using Llama2 🦙🦜")
+    uploaded_files = st.sidebar.file_uploader("Upload your Data", accept_multiple_files=True, type="csv")
+
+    if uploaded_files:
+        data = combine_csv_files_and_get_data(uploaded_files, output_path)
+
+        # get the text chunks
+        text_chunks = get_text_chunks(data)
+
+        # get embeddings
+        docsearch = get_embeddings(text_chunks,DB_FAISS_PATH)
+
+        # Import my language model
+        llm = load_llm(llm_path)
+
+        conversational_memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, max_turns=5)
+
+        chain = ConversationalRetrievalChain.from_llm(
+                                                    llm,
+                                                    retriever=docsearch.as_retriever(),
+                                                    memory = conversational_memory
+                                                )
+        print("Chain and Memory activated")
 
         if 'history' not in st.session_state:
             st.session_state['history'] = []
 
         if 'generated' not in st.session_state:
-            st.session_state['generated'] = ["Olá! Pergunte-me qualquer coisa sobre o arquivo CSV 🤗"]
+            st.session_state['generated'] = ["Hello ! Ask me anything about all data🤗"]
 
         if 'past' not in st.session_state:
-            st.session_state['past'] = ["Ei! 👋"]
-
+            st.session_state['past'] = ["Hey ! 👋"]
+            
+        #container for the chat history
         response_container = st.container()
+        #container for the user's text input
         container = st.container()
 
         with container:
             with st.form(key='my_form', clear_on_submit=True):
-                user_input = st.text_input("Pergunta:", placeholder="Converse com seus dados CSV aqui (:", key='input')
-                submit_button = st.form_submit_button(label='Enviar')
-
+            
+                user_input = st.text_input("Query:", placeholder="Talk to your csv data here (:", key='input')
+                submit_button = st.form_submit_button(label='Send')
+            
             if submit_button and user_input:
-                output = conversational_chat(user_input)
+                output = conversational_chat(chain,user_input)
+            
                 st.session_state['past'].append(user_input)
                 st.session_state['generated'].append(output)
 
@@ -100,8 +148,7 @@ def main():
                 for i in range(len(st.session_state['generated'])):
                     message(st.session_state["past"][i], is_user=True, key=str(i) + '_user', avatar_style="big-smile")
                     message(st.session_state["generated"][i], key=str(i), avatar_style="thumbs")
-    else:
-        st.write("Por favor, faça login e carregue um arquivo CSV para começar.")
 
-if __name__ == "__main__":
-    main()
+
+if __name__ == '__main__':
+        main()
